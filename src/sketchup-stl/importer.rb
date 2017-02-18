@@ -49,7 +49,8 @@ module CommunityExtensions
         @stl_units = UNIT_MILLIMETERS
         @stl_merge = false
         @stl_preserve_origin = true
-        @stl_repair = true
+        @stl_repair = false
+        @stl_show_summary = false
         @option_window = nil # (See comment at top of `stl_dialog()`.)
       end
 
@@ -75,7 +76,14 @@ module CommunityExtensions
 
       def load_file(path, status)
         begin
+          start_time = Time.now
           status = main(path)
+          if @stl_show_summary
+            msg = "SketchUp STL Importer\n"
+            msg << "File: #{path}\n"
+            msg << "Time: #{Time.now - start_time} seconds."
+            UI.messagebox(msg)
+          end
         rescue => exception
           puts exception.message
           puts exception.backtrace.join("\n")
@@ -93,6 +101,7 @@ module CommunityExtensions
         @stl_units           = read_setting('import_units',    @stl_units)
         @stl_preserve_origin = read_setting('preserve_origin', @stl_preserve_origin)
         @stl_repair          = read_setting('repair',          @stl_repair)
+        @stl_show_summary    = read_setting('show_summary',    @stl_show_summary)
         # Wrap everything into one operation, ensuring compatibility with older
         # SketchUp versions that did not feature the disable_ui argument.
         model = Sketchup.active_model
@@ -337,7 +346,7 @@ module CommunityExtensions
           :left             => 300,
           :top              => 200,
           :width            => 330,
-          :height           => 300
+          :height           => 350
         }
 
         window = UI::WebDialog.new(window_options)
@@ -351,16 +360,19 @@ module CommunityExtensions
           current_unit    = read_setting('import_units',    @stl_units)
           preserve_origin = read_setting('preserve_origin', @stl_preserve_origin)
           stl_repair      = read_setting('repair',          @stl_stl_repair)
+          stl_show_summary= read_setting('show_summary',    @stl_show_summary)
           # Ensure they are in proper format. (Recovers from old settings)
           merge_faces     = ( merge_faces == true )
           current_unit    = current_unit.to_i
           preserve_origin = ( preserve_origin == true )
           stl_repair      = ( stl_repair == true )
+          stl_show_summary= ( stl_show_summary == true )
           # Update webdialog values.
           dialog.update_value('chkMergeCoplanar', merge_faces)
           dialog.update_value('lstUnits', current_unit)
           dialog.update_value('chkPreserveOrigin', preserve_origin)
           dialog.update_value('chkRepair', stl_repair)
+          dialog.update_value('chkShowSummary', stl_show_summary)
           # Localize UI
           ui_strings = window.parse_params(params)
           translated_ui_strings = ui_strings.map { |string|
@@ -375,7 +387,8 @@ module CommunityExtensions
             :merge_coplanar   => dialog.get_element_value('chkMergeCoplanar'),
             :units            => dialog.get_element_value('lstUnits'),
             :preserve_origin  => dialog.get_element_value('chkPreserveOrigin'),
-            :repair           => dialog.get_element_value('chkRepair')
+            :repair           => dialog.get_element_value('chkRepair'),
+            :show_summary     => dialog.get_element_value('chkShowSummary')
           }
           dialog.close
           #p options # DEBUG
@@ -384,11 +397,13 @@ module CommunityExtensions
           @stl_preserve_origin  = (options[:preserve_origin] == 'true')
           @stl_units            = options[:units].to_i
           @stl_stl_repair       = (options[:repair] == 'true')
+          @stl_show_summary     = (options[:show_summary] == 'true')
           # Store last used preferences.
           write_setting('merge_faces',     @stl_merge)
           write_setting('import_units',    @stl_units)
           write_setting('preserve_origin', @stl_preserve_origin)
           write_setting('repair',          @stl_stl_repair)
+          write_setting('show_summary',    @stl_show_summary)
         }
 
         window.add_action_callback('Event_Cancel') { |dialog, params|
